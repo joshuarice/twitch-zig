@@ -31,8 +31,21 @@ fn processLine(line: []const u8, writer: anytype) !void {
 }
 
 fn setupConnection() !struct { stream: std.net.Stream, writer: std.net.Stream.Writer } {
-    const port = try std.fmt.parseInt(u16, "6667", 10);
-    const peer = try std.net.Address.parseIp4("44.227.173.36", port);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        const leaked = gpa.deinit();
+        if (leaked == .leak) @panic("Memory leak detected!");
+    }
+    const allocator = gpa.allocator();
+
+    const port_str = try std.process.getEnvVarOwned(allocator, "TWITCH_PORT");
+    defer allocator.free(port_str);
+    const port = try std.fmt.parseInt(u16, port_str, 10);
+
+    const server = try std.process.getEnvVarOwned(allocator, "TWITCH_SERVER");
+    defer allocator.free(server);
+    const peer = try std.net.Address.parseIp4(server, port);
+
     const stream = try std.net.tcpConnectToAddress(peer);
 
     std.debug.print("Attempting to connect to {}\n", .{peer});
